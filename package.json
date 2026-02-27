@@ -2,14 +2,18 @@
   "name": "pathfinding-visualizer",
   "private": true,
   "version": "0.0.0",
+  "homepage": "https://bamsemats.github.io/pathfinding-visualizer/",
   "type": "module",
   "scripts": {
+    "predeploy": "cross-env CI=false npm run build",
+    "deploy": "npm run build && gh-pages -d dist",
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "cross-env": "^10.1.0",
     "framer-motion": "^12.34.3",
     "gh-pages": "^6.3.0",
     "lucide-react": "^0.575.0",
