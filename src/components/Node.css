@@ -1,6 +1,16 @@
+:root {
+  --node-size: 25px;
+}
+
+@media (max-width: 600px) {
+  :root {
+    --node-size: 20px;
+  }
+}
+
 .node {
-  width: 25px;
-  height: 25px;
+  width: var(--node-size);
+  height: var(--node-size);
   outline: 1px solid #30363d;
   display: inline-block;
   user-select: none;

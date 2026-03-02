@@ -7,15 +7,13 @@ import { recursiveDivisionMaze } from '../algorithms/mazeRecursiveDivision';
 import { randomMaze } from '../algorithms/mazeRandom';
 import './Grid.css';
 
-const DEFAULT_START_NODE = [10, 15];
-const DEFAULT_END_NODE = [10, 35];
-const ROWS = 20;
-const COLS = 50;
-
 const Grid = forwardRef(({ onAlgorithmComplete, speed = 'medium' }, ref) => {
   const [grid, setGrid] = useState([]);
   const [mouseIsPressed, setMouseIsPressed] = useState(false);
   const [isVisualizing, setIsVisualizing] = useState(false);
+  const [dimensions, setDimensions] = useState({ rows: 20, cols: 50 });
+  const [startNode, setStartNode] = useState([10, 15]);
+  const [endNode, setEndNode] = useState([10, 35]);
 
   // Speed mapping (Visited delay, Path delay)
   const speedMap = {
@@ -37,8 +35,38 @@ const Grid = forwardRef(({ onAlgorithmComplete, speed = 'medium' }, ref) => {
   }));
 
   useEffect(() => {
-    const initialGrid = getInitialGrid();
+    const calculateDimensions = () => {
+      const nodeSize = window.innerWidth <= 600 ? 20 : 25;
+      const width = window.innerWidth - 40; // 20px padding on each side
+      const height = window.innerHeight - (window.innerWidth <= 768 ? 400 : 250); // Larger offset for stacked header on mobile
+      
+      const cols = Math.max(15, Math.floor(width / nodeSize));
+      const rows = Math.max(10, Math.floor(height / nodeSize));
+      
+      const startR = Math.floor(rows / 2);
+      const startC = Math.floor(cols / 4);
+      const endR = Math.floor(rows / 2);
+      const endC = Math.floor((cols / 4) * 3);
+
+      setDimensions({ rows, cols });
+      setStartNode([startR, startC]);
+      setEndNode([endR, endC]);
+      
+      return { rows, cols, startR, startC, endR, endC };
+    };
+
+    const { rows, cols, startR, startC, endR, endC } = calculateDimensions();
+    const initialGrid = getInitialGrid(rows, cols, startR, startC, endR, endC);
     setGrid(initialGrid);
+
+    const handleResize = () => {
+      if (isVisualizing) return;
+      const { rows, cols, startR, startC, endR, endC } = calculateDimensions();
+      setGrid(getInitialGrid(rows, cols, startR, startC, endR, endC));
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const generateMaze = (type) => {
@@ -48,7 +76,7 @@ const Grid = forwardRef(({ onAlgorithmComplete, speed = 'medium' }, ref) => {
     const wallsInOrder = type === 'recursive' 
       ? (() => {
           const walls = [];
-          recursiveDivisionMaze(grid, 2, ROWS - 3, 2, COLS - 3, "horizontal", false, walls);
+          recursiveDivisionMaze(grid, 2, dimensions.rows - 3, 2, dimensions.cols - 3, "horizontal", false, walls);
           return walls;
         })()
       : randomMaze(grid);
@@ -87,22 +115,22 @@ const Grid = forwardRef(({ onAlgorithmComplete, speed = 'medium' }, ref) => {
       totalCost: Infinity,
     })));
     
-    const startNode = newGrid[DEFAULT_START_NODE[0]][DEFAULT_START_NODE[1]];
-    const finishNode = newGrid[DEFAULT_END_NODE[0]][DEFAULT_END_NODE[1]];
+    const start = newGrid[startNode[0]][startNode[1]];
+    const finish = newGrid[endNode[0]][endNode[1]];
     
     const startTime = performance.now();
     let visitedNodesInOrder;
     if (algo === 'dijkstra') {
-      visitedNodesInOrder = dijkstra(newGrid, startNode, finishNode);
+      visitedNodesInOrder = dijkstra(newGrid, start, finish);
     } else if (algo === 'astar') {
-      visitedNodesInOrder = astar(newGrid, startNode, finishNode);
+      visitedNodesInOrder = astar(newGrid, start, finish);
     } else if (algo === 'bfs') {
-      visitedNodesInOrder = bfs(newGrid, startNode, finishNode);
+      visitedNodesInOrder = bfs(newGrid, start, finish);
     }
     const endTime = performance.now();
     const executionTime = endTime - startTime;
     
-    const nodesInShortestPathOrder = getDijkstraPath(finishNode);
+    const nodesInShortestPathOrder = getDijkstraPath(finish);
     animateAlgorithm(visitedNodesInOrder, nodesInShortestPathOrder, algo, executionTime);
   };
 
@@ -116,7 +144,8 @@ const Grid = forwardRef(({ onAlgorithmComplete, speed = 'medium' }, ref) => {
       }
       setTimeout(() => {
         const node = visitedNodesInOrder[i];
-        document.getElementById(`node-${node.row}-${node.col}`).classList.add('node-visited');
+        const el = document.getElementById(`node-${node.row}-${node.col}`);
+        if (el) el.classList.add('node-visited');
       }, vDelay * i);
     }
   };
@@ -142,7 +171,8 @@ const Grid = forwardRef(({ onAlgorithmComplete, speed = 'medium' }, ref) => {
     for (let i = 0; i < nodesInShortestPathOrder.length; i++) {
       setTimeout(() => {
         const node = nodesInShortestPathOrder[i];
-        document.getElementById(`node-${node.row}-${node.col}`).classList.add('node-path');
+        const el = document.getElementById(`node-${node.row}-${node.col}`);
+        if (el) el.classList.add('node-path');
         if (i === nodesInShortestPathOrder.length - 1) {
           setIsVisualizing(false);
           if (onAlgorithmComplete) {
@@ -161,7 +191,7 @@ const Grid = forwardRef(({ onAlgorithmComplete, speed = 'medium' }, ref) => {
 
   const clearGrid = () => {
     if (isVisualizing) return;
-    const initialGrid = getInitialGrid();
+    const initialGrid = getInitialGrid(dimensions.rows, dimensions.cols, startNode[0], startNode[1], endNode[0], endNode[1]);
     setGrid(initialGrid);
     clearDOMClasses(initialGrid);
   };
@@ -211,12 +241,26 @@ const Grid = forwardRef(({ onAlgorithmComplete, speed = 'medium' }, ref) => {
     setGrid(newGrid);
   }, [grid, mouseIsPressed, isVisualizing]);
 
+  const handleTouchMove = (e) => {
+    if (!mouseIsPressed || isVisualizing) return;
+    const touch = e.touches[0];
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+    if (element && element.id.startsWith('node-')) {
+      const [, row, col] = element.id.split('-').map(Number);
+      const node = grid[row][col];
+      if (!node.isWall && !node.isStart && !node.isEnd) {
+        const newGrid = getNewGridWithWallToggled(grid, row, col, true);
+        setGrid(newGrid);
+      }
+    }
+  };
+
   const handleMouseUp = useCallback(() => {
     setMouseIsPressed(false);
   }, []);
 
   return (
-    <div className="grid">
+    <div className="grid" onTouchMove={handleTouchMove}>
       {grid.map((row, rowIdx) => (
         <div key={rowIdx} className="grid-row">
           {row.map((node, nodeIdx) => {
@@ -245,24 +289,24 @@ const Grid = forwardRef(({ onAlgorithmComplete, speed = 'medium' }, ref) => {
 
 // --- Helper Functions ---
 
-const getInitialGrid = () => {
+const getInitialGrid = (rows, cols, startR, startC, endR, endC) => {
   const grid = [];
-  for (let row = 0; row < ROWS; row++) {
+  for (let row = 0; row < rows; row++) {
     const currentRow = [];
-    for (let col = 0; col < COLS; col++) {
-      currentRow.push(createNode(col, row));
+    for (let col = 0; col < cols; col++) {
+      currentRow.push(createNode(col, row, startR, startC, endR, endC));
     }
     grid.push(currentRow);
   }
   return grid;
 };
 
-const createNode = (col, row) => {
+const createNode = (col, row, startR, startC, endR, endC) => {
   return {
     col,
     row,
-    isStart: row === DEFAULT_START_NODE[0] && col === DEFAULT_START_NODE[1],
-    isEnd: row === DEFAULT_END_NODE[0] && col === DEFAULT_END_NODE[1],
+    isStart: row === startR && col === startC,
+    isEnd: row === endR && col === endC,
     distance: Infinity,
     isVisited: false,
     isWall: false,

@@ -33,6 +33,8 @@ const Node = ({
       onMouseDown={() => onMouseDown(row, col)}
       onMouseEnter={() => onMouseEnter(row, col)}
       onMouseUp={() => onMouseUp()}
+      onTouchStart={() => onMouseDown(row, col)}
+      onTouchEnd={() => onMouseUp()}
       initial={false}
       animate={{
         scale: isWall ? [0.6, 1.1, 1] : 1,
